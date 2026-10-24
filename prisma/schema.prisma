@@ -1,0 +1,64 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Usuario {
+  id           Int          @id @default(autoincrement())
+  nome         String
+  email        String       @unique
+  senhaHash    String
+  role         String       @default("usuario") // "usuario" | "admin"
+  principal    Boolean      @default(false)     // admin principal: único que dá/retira permissão de admin
+  status       String       @default("ATIVO")   // ATIVO | INATIVO (exclusão lógica)
+  criadoEm     DateTime     @default(now())
+  atualizadoEm DateTime     @updatedAt
+
+  emprestimos          Emprestimo[] @relation("EmprestimoSolicitante")
+  emprestimosAvaliados Emprestimo[] @relation("EmprestimoAvaliador")
+  devolucoesRecebidas  Emprestimo[] @relation("EmprestimoRecebedor")
+
+  @@index([status])
+}
+
+model Equipamento {
+  id           Int          @id @default(autoincrement())
+  patrimonio   String       @unique
+  descricao    String
+  categoria    String       // ex.: "Notebook", "Kit Arduino"
+  status       String       @default("DISPONIVEL") // DISPONIVEL | EMPRESTADO | MANUTENCAO
+  criadoEm     DateTime     @default(now())
+  atualizadoEm DateTime     @updatedAt
+  emprestimos  Emprestimo[]
+
+  @@index([categoria])
+}
+
+model Emprestimo {
+  id                       Int         @id @default(autoincrement())
+  usuarioId                Int
+  equipamentoId            Int
+  // SOLICITADO | REJEITADO | ATIVO | DEVOLUCAO_PENDENTE | DEVOLVIDO
+  status                   String      @default("SOLICITADO")
+  dataSolicitacao          DateTime    @default(now())
+  dataRetirada             DateTime?   // preenchida quando o admin aprova
+  dataPrevistaDevolucao    DateTime?   // dataRetirada + prazo fixo (7 dias)
+  motivoRejeicao           String?
+  dataSolicitacaoDevolucao DateTime?   // usuário informa que devolveu
+  dataDevolucao            DateTime?   // admin confirma o recebimento
+  avaliadoPorId            Int?        // admin que aprovou ou rejeitou
+  recebidoPorId            Int?        // admin que confirmou a devolução
+  usuario                  Usuario     @relation("EmprestimoSolicitante", fields: [usuarioId], references: [id])
+  avaliadoPor              Usuario?    @relation("EmprestimoAvaliador", fields: [avaliadoPorId], references: [id])
+  recebidoPor              Usuario?    @relation("EmprestimoRecebedor", fields: [recebidoPorId], references: [id])
+  equipamento              Equipamento @relation(fields: [equipamentoId], references: [id])
+
+  @@index([usuarioId])
+  @@index([equipamentoId])
+  @@index([status])
+  @@index([dataPrevistaDevolucao])
+}
